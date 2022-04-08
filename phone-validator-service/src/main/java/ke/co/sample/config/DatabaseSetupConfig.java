@@ -2,6 +2,7 @@ package ke.co.sample.config;
 
 import ke.co.sample.repositories.CustomerPhoneStateRepository;
 import ke.co.sample.repositories.CustomerRepository;
+import ke.co.sample.repositories.entities.Customer;
 import ke.co.sample.repositories.entities.CustomerPhoneState;
 import ke.co.sample.services.PhonePatterns;
 import ke.co.sample.utils.PhoneNumberStatus;
@@ -10,6 +11,9 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -17,6 +21,7 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Configuration
 public class DatabaseSetupConfig {
@@ -78,14 +83,27 @@ public class DatabaseSetupConfig {
 
         @Override
         public void run(String... args) throws Exception {
+            log.info("Classifying and validating customer phone numbers to countries");
+            long count = customerRepository.countAllByProcessed((short) 0);
             // get all supported patterns from the database
             Map<String, PhonePatterns.CountryPattern> supportedPatterns = phonePatterns.getSupportedPatterns();
 
+            while (count > 0) {
+                processPhoneNumbers(supportedPatterns);
+
+                count = customerRepository.countAllByProcessed((short) 0);
+            }
+        }
+
+        private void processPhoneNumbers(Map<String, PhonePatterns.CountryPattern> supportedPatterns) {
             // load customer phone numbers from database
             List<CustomerPhoneState> stateList = new ArrayList<>();
 
+            Page<Customer> page = customerRepository.findByProcessed((short) 0,
+                    PageRequest.of(0, 10, Sort.by("id").ascending()));
+            List<Customer> customerList = page.get().collect(Collectors.toList());
             // classify and validate phone numbers
-            customerRepository.findAll().forEach(customer -> {
+            customerList.forEach(customer -> {
                 String phoneNumber = customer.getPhone();
 
                 // check if phone number is supported
@@ -107,10 +125,9 @@ public class DatabaseSetupConfig {
                     log.info("Phone number {} is not supported", phoneNumber);
                 }
                 stateList.add(state);
+                customer.setProcessed((short) 1);
             });
-
-            // drop all existing phone numbers
-            customerPhoneStateRepository.deleteAll();
+            customerRepository.saveAll(customerList);
             // save phone number states to database
             customerPhoneStateRepository.saveAll(stateList);
         }

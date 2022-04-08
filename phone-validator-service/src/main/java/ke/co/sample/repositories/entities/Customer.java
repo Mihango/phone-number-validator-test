@@ -28,6 +28,9 @@ public class Customer {
     @Column(name = "phone")
     private String phone;
 
+    @Column(name = "processed")
+    private short processed;
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

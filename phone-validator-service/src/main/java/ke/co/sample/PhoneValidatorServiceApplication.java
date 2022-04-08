@@ -17,10 +17,12 @@ import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.util.*;
+import java.util.concurrent.Executor;
 
 @SpringBootApplication
 @EnableConfigurationProperties(PhoneValidatorProperties.class)
@@ -28,5 +30,16 @@ public class PhoneValidatorServiceApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(PhoneValidatorServiceApplication.class, args);
+    }
+
+    @Bean
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("PhoneValidator-");
+        executor.initialize();
+        return executor;
     }
 }
